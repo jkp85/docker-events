@@ -1,0 +1,14 @@
+# whitelist
+language: go
+go:
+  - 1.7.1
+branches:
+  only:
+    - master
+sudo: required
+before_install:
+  - go get -t -v ./...
+script:
+  - make
+notifications:
+  slack: 3blades:3rbJ1AFPEEoKt3XgPgtIQQ65
