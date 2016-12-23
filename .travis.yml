@@ -11,4 +11,4 @@ before_install:
 script:
   - make
 notifications:
-  slack: 3blades:3rbJ1AFPEEoKt3XgPgtIQQ65
+  slack: 3blades:NfpxGDhEHu8m6K3bw9c9Mxd0
