@@ -3,4 +3,4 @@
 
 # docker-stats
 
-Docker stats image.
+Docker stats image used in main app server.
