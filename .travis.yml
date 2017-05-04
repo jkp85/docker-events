@@ -1,7 +1,7 @@
 # whitelist
 language: go
 go:
-  - 1.7.1
+  - 1.8.1
 branches:
   only:
     - master
@@ -10,7 +10,6 @@ services:
   - docker
 before_install:
   - docker --version  # document the version travis is using
-  - export PATH=$PATH:$HOME/.local/bin # put aws in the path
   - go get golang.org/x/tools/cmd/cover
   - go get -t -v ./...
   - docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
