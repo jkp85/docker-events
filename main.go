@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -15,14 +16,22 @@ func main() {
 func Die(e Event) {
 	attrs := e["Actor"].(map[string]interface{})["Attributes"].(map[string]interface{})
 	name := attrs["name"].(string)
+	if !strings.HasPrefix(name, "server") {
+		return
+	}
 	log.Printf("Handling die event for container: %s\n", name)
 	serverID, err := idFromServerName(name)
 	if err != nil {
 		log.Println("Error parsing server id: %s", err)
 		return
 	}
+	token, err := getUserToken(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	action := NewAction("POST", serverID.String())
-	resp, err := APIClient.Post("/actions/create/", action)
+	resp, err := APIClient.Post("/actions/create/", token, action)
 	if err != nil {
 		log.Printf("Action create error: %s", err)
 	}

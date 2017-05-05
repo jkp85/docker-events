@@ -1,6 +1,7 @@
 package main
 
 type Action struct {
+	ActionName   string `json:"action_name"`
 	Action       string `json:"action"`
 	IsUserAction bool   `json:"is_user_action"`
 	Method       string `json:"method"`
@@ -12,6 +13,7 @@ type Action struct {
 
 func NewAction(method, object string) *Action {
 	return &Action{
+		ActionName:   "stop",
 		Action:       "Server stop",
 		IsUserAction: false,
 		Method:       method,
