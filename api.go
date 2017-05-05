@@ -22,17 +22,15 @@ func NewClient() *Client {
 	return &Client{
 		client:  &http.Client{Timeout: 10 * time.Second},
 		BaseURL: apiURL,
-		Token:   os.Getenv("TOKEN"),
 	}
 }
 
 type Client struct {
 	client  *http.Client
 	BaseURL *url.URL
-	Token   string
 }
 
-func (c *Client) NewRequest(method, urlStr string, body interface{}) (*http.Request, error) {
+func (c *Client) NewRequest(method, urlStr, token string, body interface{}) (*http.Request, error) {
 	rel, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -54,20 +52,20 @@ func (c *Client) NewRequest(method, urlStr string, body interface{}) (*http.Requ
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.Token))
+	req.Header.Set("Authorization", fmt.Sprintf("Token %s", token))
 	return req, nil
 }
 
-func (c *Client) Get(urlStr string) (*http.Response, error) {
-	req, err := c.NewRequest("GET", urlStr, nil)
+func (c *Client) Get(urlStr, token string) (*http.Response, error) {
+	req, err := c.NewRequest("GET", urlStr, token, nil)
 	if err != nil {
 		return nil, err
 	}
 	return c.client.Do(req)
 }
 
-func (c *Client) Post(urlStr string, body interface{}) (*http.Response, error) {
-	req, err := c.NewRequest("POST", urlStr, body)
+func (c *Client) Post(urlStr, token string, body interface{}) (*http.Response, error) {
+	req, err := c.NewRequest("POST", urlStr, token, body)
 	if err != nil {
 		return nil, err
 	}
