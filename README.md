@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/3Blades/docker-stats.svg?branch=master)](https://travis-ci.org/3Blades/docker-stats)
-[![Code Climate](https://codeclimate.com/repos/5852c04b9fecfe0054000303/badges/dc09f40aa102f4249c36/gpa.svg)](https://codeclimate.com/repos/5852c04b9fecfe0054000303/feed)
-[![slack in](https://slackin-pypmyuhqds.now.sh/badge.svg)](https://slackin-pypmyuhqds.now.sh/)
+[![Code Climate](https://codeclimate.com/github/3Blades/docker-stats/badges/gpa.svg)](https://codeclimate.com/github/3Blades/docker-stats)
+[![slack in](https://slack.3blades.io/badge.svg)](https://slack.3blades.io/)
 
 # docker-stats
 
