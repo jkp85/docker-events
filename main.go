@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+	go websockets()
 	d := NewDispatcher()
 	d.HandleFunc("container", "die", Die)
 	log.Fatal(d.Run())
