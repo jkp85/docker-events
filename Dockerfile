@@ -1,5 +1,5 @@
 FROM scratch
 
 EXPOSE 8000
-CMD ["/stats"]
-ADD stats /
+CMD ["/events"]
+ADD events /
