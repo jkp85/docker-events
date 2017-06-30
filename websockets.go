@@ -79,10 +79,11 @@ func serverHandler(w http.ResponseWriter, r *http.Request) {
 		if eventName == "start" {
 			msg.Status = "Running"
 		} else {
-			if exitCode != "0" {
-				msg.Status = "Error"
-			} else {
+			switch exitCode {
+			case "0", "143":
 				msg.Status = "Stopped"
+			default:
+				msg.Status = "Error"
 			}
 		}
 		err = conn.WriteJSON(msg)

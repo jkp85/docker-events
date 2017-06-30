@@ -1,7 +1,7 @@
 SOURCEDIR=.
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 
-BINARY=stats
+BINARY=events
 
 VERSION=0.0.1
 
