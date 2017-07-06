@@ -12,13 +12,10 @@ before_install:
   - docker --version  # document the version travis is using
   - go get golang.org/x/tools/cmd/cover
   - go get -t -v ./...
-  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
 script:
   - make
-after_script:
-  - docker build -t $DOCKER_IMAGE_NAME .
-  - docker push $DOCKER_IMAGE_NAME:latest
 after_success:
+  - bash config/buildDockerImage.sh
   - bash <(curl -s https://codecov.io/bash)
 notifications:
   slack: 3blades:NfpxGDhEHu8m6K3bw9c9Mxd0
