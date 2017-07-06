@@ -5,18 +5,19 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/docker/docker/api/types/events"
 )
 
 func main() {
-	go websockets()
+	// go websockets()
 	d := NewDispatcher()
 	d.HandleFunc("container", "die", Die)
 	log.Fatal(d.Run())
 }
 
-func Die(e Event) {
-	attrs := e["Actor"].(map[string]interface{})["Attributes"].(map[string]interface{})
-	name := attrs["name"].(string)
+func Die(e events.Message) {
+	name := e.Actor.Attributes["name"]
 	if !strings.HasPrefix(name, "server") {
 		return
 	}
