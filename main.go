@@ -12,7 +12,7 @@ import (
 func main() {
 	// go websockets()
 	d := NewDispatcher()
-	d.HandleFunc("container", "die", Die)
+	d.HandleFunc("service", "remove", Die)
 	log.Fatal(d.Run())
 }
 
@@ -21,7 +21,7 @@ func Die(e events.Message) {
 	if !strings.HasPrefix(name, "server") {
 		return
 	}
-	log.Printf("Handling die event for container: %s\n", name)
+	log.Printf("Handling remove event for service: %s\n", name)
 	serverID, err := idFromServerName(name)
 	if err != nil {
 		log.Println("Error parsing server id: %s", err)
