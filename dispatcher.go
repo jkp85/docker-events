@@ -26,11 +26,21 @@ type Dispatcher interface {
 	Run() error
 	Handle(eventType, name string, eh EventHandler)
 	HandleFunc(eventType, name string, eh func(events.Message))
+	GetHandler(string) EventHandler
 }
 
 // Dispatches events to proper handlers
 type Dispatch struct {
 	handlers map[string]EventHandler
+}
+
+// Gets event handler by name
+func (d *Dispatch) GetHandler(name string) EventHandler {
+	handler, ok := d.handlers[name]
+	if ok {
+		return handler
+	}
+	return nil
 }
 
 // Creates new dispatcher
@@ -47,22 +57,8 @@ func (d *Dispatch) Run() error {
 	if err != nil {
 		return err
 	}
-	eventsCh, errCh := cli.Events(context.Background(), types.EventsOptions{})
-	if err != nil {
-		return err
-	}
 	log.Printf("Dispatcher: %s\n", d)
-	select {
-	case msg := <-eventsCh:
-		eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
-		handler, ok := d.handlers[eventName]
-		if ok {
-			go handler.Handle(msg)
-		}
-	case err = <-errCh:
-		return err
-	}
-	return nil
+	return dispatch(cli, d)
 }
 
 // Registers event with proper handler
@@ -80,4 +76,29 @@ func (d *Dispatch) HandleFunc(eventType, name string, handler func(events.Messag
 		eventName := fmt.Sprintf("%s.%s", eventType, name)
 		d.handlers[eventName] = EventHandlerFunc(handler)
 	}
+}
+
+func listen(cli *client.Client) (<-chan events.Message, <-chan error) {
+	return cli.Events(context.Background(), types.EventsOptions{})
+}
+
+func dispatch(cli *client.Client, d Dispatcher) error {
+	for {
+		eventsCh, errCh := listen(cli)
+		select {
+		case msg := <-eventsCh:
+			eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
+			handler := d.GetHandler(eventName)
+			if handler != nil {
+				go handler.Handle(msg)
+			}
+		case err := <-errCh:
+			return err
+		}
+	}
+	return nil
+}
+
+func eventName(msg events.Message) string {
+	return fmt.Sprintf("%s.%s", msg.Type, msg.Action)
 }

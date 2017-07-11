@@ -10,13 +10,13 @@ import (
 )
 
 func main() {
-	// go websockets()
+	go websockets()
 	d := NewDispatcher()
-	d.HandleFunc("service", "remove", Die)
+	d.HandleFunc("service", "remove", Remove)
 	log.Fatal(d.Run())
 }
 
-func Die(e events.Message) {
+func Remove(e events.Message) {
 	name := e.Actor.Attributes["name"]
 	if !strings.HasPrefix(name, "server") {
 		return

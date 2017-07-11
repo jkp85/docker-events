@@ -11,7 +11,7 @@ import (
 )
 
 func idFromServerName(name string) (uuid.UUID, error) {
-	serverID := strings.Split(name, "_")[1]
+	serverID := strings.Split(name, "-")[1]
 	return uuid.FromString(serverID)
 }
 
