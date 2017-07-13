@@ -2,6 +2,6 @@
 [![Build Status](https://travis-ci.org/3Blades/docker-stats.svg?branch=master)](https://travis-ci.org/3Blades/docker-stats)
 [![slack in](https://slack.3blades.io/badge.svg)](https://slack.3blades.io/)
 
-# docker-stats
+# docker-events
 
-Docker stats image used in main app server.
+Docker events image used in main app server.
