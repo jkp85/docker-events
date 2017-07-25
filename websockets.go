@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -22,8 +24,8 @@ func handshake(conf *ws.Config, r *http.Request) error {
 
 func websockets() {
 	r := mux.NewRouter()
-	r.Handle("/status/{server}", &ws.Server{Handler: statusHandler, Handshake: handshake})
-	r.Handle("/logs/{server}", &ws.Server{Handler: logsHandler, Handshake: handshake})
+	r.HandleFunc("/status/{server}/", statusHandler)
+	r.Handle("/logs/{server}/", ws.Handler(logsHandler))
 	server := &http.Server{
 		Addr:           ":8000",
 		Handler:        r,
@@ -38,7 +40,37 @@ type Message struct {
 	Status string `json:"status"`
 }
 
-func statusHandler(conn *ws.Conn) {
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	upgrade := w.Header().Get("Upgrade")
+	if upgrade == "websocket" {
+		ws.Handler(wsStatusHandler).ServeHTTP(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	client := &http.Client{}
+	vars := mux.Vars(r)
+	uri := fmt.Sprintf("http://%s/api", os.Getenv("DOCKER_DOMAIN"))
+	msg := &Message{}
+	enc := json.NewEncoder(w)
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		log.Println(err)
+		msg.Status = "Error"
+		enc.Encode(msg)
+		return
+	}
+	req.Host = fmt.Sprintf("%s.traefik", vars["server"])
+	_, err = client.Do(req)
+	if err != nil {
+		log.Println(err)
+		msg.Status = "Error"
+	} else {
+		msg.Status = "Running"
+	}
+	enc.Encode(msg)
+}
+
+func wsStatusHandler(conn *ws.Conn) {
 	vars := mux.Vars(conn.Request())
 	server := vars["server"]
 	defer conn.Close()
@@ -59,13 +91,13 @@ func statusHandler(conn *ws.Conn) {
 		select {
 		case msg := <-eventsCh:
 			eventName := msg.Action
-			apiMsg := &Message{Status: "Running"}
+			apiMsg := &Message{}
 			if eventName == "remove" {
 				apiMsg.Status = "Stopped"
-			}
-			err = enc.Encode(apiMsg)
-			if err != nil {
-				log.Println(err)
+				err = enc.Encode(apiMsg)
+				if err != nil {
+					log.Println(err)
+				}
 			}
 		case err = <-errCh:
 			if err == io.EOF {
