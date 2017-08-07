@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -33,7 +34,8 @@ func Die(e events.Message) {
 		return
 	}
 	action := NewAction("POST", serverID.String())
-	resp, err := APIClient.Post("/actions/create/", token, action)
+	resp, err := APIClient.Post(
+		fmt.Sprintf("/%s/actions/create/", os.Getenv("TBS_DEFAULT_VERSION")), token, action)
 	if err != nil {
 		log.Printf("Action create error: %s", err)
 	}

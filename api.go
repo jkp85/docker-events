@@ -9,20 +9,27 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
 var APIClient = NewClient()
 
 func NewClient() *Client {
-	apiURL, err := url.Parse(os.Getenv("API_URL"))
-	if err != nil {
-		log.Fatal("Set API_URL env var")
-	}
 	return &Client{
 		client:  &http.Client{Timeout: 10 * time.Second},
-		BaseURL: apiURL,
+		BaseURL: createAPIURL(),
 	}
+}
+
+func createAPIURL() *url.URL {
+	https := strings.ToLower(os.Getenv("TBS_HTTPS")) == "true"
+	proto := "http"
+	if https {
+		proto = "https"
+	}
+	return &url.URL{Scheme: proto, Host: fmt.Sprintf("%s:%s", os.Getenv("TBS_HOST"), os.Getenv("TBS_PORT"))}
+
 }
 
 type Client struct {
@@ -52,7 +59,7 @@ func (c *Client) NewRequest(method, urlStr, token string, body interface{}) (*ht
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	return req, nil
 }
 
@@ -69,5 +76,6 @@ func (c *Client) Post(urlStr, token string, body interface{}) (*http.Response, e
 	if err != nil {
 		return nil, err
 	}
+	log.Println("POST")
 	return c.client.Do(req)
 }
