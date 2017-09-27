@@ -23,7 +23,7 @@ func getUserToken(service string) (string, error) {
 	serviceJSON, _, err := cli.ServiceInspectWithRaw(context.Background(), service, types.ServiceInspectOptions{})
 	args := serviceJSON.Spec.TaskTemplate.ContainerSpec.Args
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "--key") {
+		if strings.HasPrefix(arg, "-key") {
 			return strings.Split(arg, "=")[1], nil
 		}
 	}

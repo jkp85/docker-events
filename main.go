@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	// go websockets()
+	go websockets()
 	d := NewDispatcher()
 	d.HandleFunc("service", "remove", Die)
 	log.Fatal(d.Run())

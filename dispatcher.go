@@ -48,19 +48,20 @@ func (d *Dispatch) Run() error {
 		return err
 	}
 	eventsCh, errCh := cli.Events(context.Background(), types.EventsOptions{})
-	if err != nil {
-		return err
-	}
 	log.Printf("Dispatcher: %s\n", d)
-	select {
-	case msg := <-eventsCh:
-		eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
-		handler, ok := d.handlers[eventName]
-		if ok {
-			go handler.Handle(msg)
+	for {
+		select {
+		case msg := <-eventsCh:
+			eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
+			handler, ok := d.handlers[eventName]
+			if ok {
+				go handler.Handle(msg)
+			}
+		case err = <-errCh:
+			if err != nil {
+				return err
+			}
 		}
-	case err = <-errCh:
-		return err
 	}
 	return nil
 }
