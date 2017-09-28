@@ -6,22 +6,23 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/docker/docker/api/types/events"
 )
 
 func main() {
 	go websockets()
 	d := NewDispatcher()
-	d.HandleFunc("container", "die", Die)
+	d.HandleFunc("service", "remove", Die)
 	log.Fatal(d.Run())
 }
 
-func Die(e Event) {
-	attrs := e["Actor"].(map[string]interface{})["Attributes"].(map[string]interface{})
-	name := attrs["name"].(string)
+func Die(e events.Message) {
+	name := e.Actor.Attributes["name"]
 	if !strings.HasPrefix(name, "server") {
 		return
 	}
-	log.Printf("Handling die event for container: %s\n", name)
+	log.Printf("Handling remove event for service: %s\n", name)
 	serverID, err := idFromServerName(name)
 	if err != nil {
 		log.Println("Error parsing server id: %s", err)

@@ -2,33 +2,30 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 
-	"github.com/docker/engine-api/client"
-	"github.com/docker/engine-api/types"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/client"
 )
-
-// Event response
-type Event map[string]interface{}
 
 // Event handler interface for handling received events
 type EventHandler interface {
-	Handle(Event)
+	Handle(events.Message)
 }
 
 // Event handler function for convenience
-type EventHandlerFunc func(Event)
+type EventHandlerFunc func(events.Message)
 
-func (f EventHandlerFunc) Handle(e Event) {
+func (f EventHandlerFunc) Handle(e events.Message) {
 	f(e)
 }
 
 type Dispatcher interface {
 	Run() error
 	Handle(eventType, name string, eh EventHandler)
-	HandleFunc(eventType, name string, eh func(Event))
+	HandleFunc(eventType, name string, eh func(events.Message))
 }
 
 // Dispatches events to proper handlers
@@ -50,25 +47,23 @@ func (d *Dispatch) Run() error {
 	if err != nil {
 		return err
 	}
-	events, err := cli.Events(context.Background(), types.EventsOptions{})
-	if err != nil {
-		return err
-	}
-	defer events.Close()
-	dec := json.NewDecoder(events)
+	eventsCh, errCh := cli.Events(context.Background(), types.EventsOptions{})
 	log.Printf("Dispatcher: %s\n", d)
 	for {
-		event := make(Event)
-		err := dec.Decode(&event)
-		if err != nil {
-			return err
-		}
-		eventName := fmt.Sprintf("%s.%s", event["Type"], event["Action"])
-		handler, ok := d.handlers[eventName]
-		if ok {
-			go handler.Handle(event)
+		select {
+		case msg := <-eventsCh:
+			eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
+			handler, ok := d.handlers[eventName]
+			if ok {
+				go handler.Handle(msg)
+			}
+		case err = <-errCh:
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // Registers event with proper handler
@@ -81,7 +76,7 @@ func (d *Dispatch) Handle(eventType, name string, handler EventHandler) {
 }
 
 // Registers event with proper handle function
-func (d *Dispatch) HandleFunc(eventType, name string, handler func(Event)) {
+func (d *Dispatch) HandleFunc(eventType, name string, handler func(events.Message)) {
 	if validateEvent(eventType, name) {
 		eventName := fmt.Sprintf("%s.%s", eventType, name)
 		d.handlers[eventName] = EventHandlerFunc(handler)

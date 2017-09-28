@@ -9,6 +9,7 @@ var (
 	VOLUME_EVENTS  = map[string]uint8{"create": 1, "mount": 1, "unmount": 1, "destroy": 1}
 	NETWORK_EVENTS = map[string]uint8{"create": 1, "connect": 1, "disconnect": 1, "destroy": 1}
 	DAEMON_EVENTS  = map[string]uint8{"reload": 1}
+	SERVICE_EVENTS = map[string]uint8{"remove": 1}
 )
 
 func validateEvent(eventType, name string) bool {
@@ -24,6 +25,8 @@ func validateEvent(eventType, name string) bool {
 		_, ok = NETWORK_EVENTS[name]
 	case "daemon":
 		_, ok = DAEMON_EVENTS[name]
+	case "service":
+		_, ok = SERVICE_EVENTS[name]
 	}
 	return ok
 }
