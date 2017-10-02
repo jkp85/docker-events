@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"log"
@@ -54,65 +55,47 @@ func logsHandler(cli *client.Client) http.Handler {
 			return
 		}
 		defer conn.Close()
-		log.Println("start loop")
-	LogsLoop:
+		var logs io.ReadCloser
+		var scanner *bufio.Scanner
+		logs, err = getLogs(cli, server, true)
+		scanner = bufio.NewScanner(logs)
 		for {
-			logs, err := getLogs(cli, server)
-			if err == io.EOF {
-				log.Println("eof")
-				err = waitForServer(cli, server)
-				if err != nil {
-					return
-				}
-				continue LogsLoop
+			for scanner.Scan() {
+				conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
 			}
-			if err != nil {
-				return
-			}
-			w, err := conn.NextWriter(websocket.BinaryMessage)
-			if err != nil {
-				log.Println("writer err", err)
-				logs.Close()
-				return
-			}
-			_, err = io.Copy(w, logs)
-			if err != nil {
-				log.Println("copy err", err)
-				logs.Close()
-				w.Close()
-				return
+			if scanner.Err() != nil {
+				log.Printf("Scanner err: %s\n", scanner.Err())
 			}
 			logs.Close()
-			w.Close()
+			waitForServer(cli, server)
+			logs, err = getLogs(cli, server, false)
+			scanner = bufio.NewScanner(logs)
 		}
 	})
 }
 
-func waitForServer(cli *client.Client, server string) error {
+func waitForServer(cli *client.Client, server string) {
 	filter := filters.NewArgs()
 	filter.Add("container", server)
 	filter.Add("event", "start")
-	eventsCh, errCh := cli.Events(context.Background(), types.EventsOptions{
+	eventsCh, _ := cli.Events(context.Background(), types.EventsOptions{
 		Filters: filter,
 	})
-	for {
-		select {
-		case <-eventsCh:
-			return nil
-		case err := <-errCh:
-			return err
-		}
-	}
+	log.Printf("Waiting for server: %s\n", server)
+	<-eventsCh
 }
 
-func getLogs(cli *client.Client, server string) (io.ReadCloser, error) {
-	log.Println("get logs")
-	return cli.ContainerLogs(context.Background(), server, types.ContainerLogsOptions{
+func getLogs(cli *client.Client, server string, tail bool) (io.ReadCloser, error) {
+	log.Printf("Getting logs for server: %s\n", server)
+	opts := types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStderr: true,
 		ShowStdout: true,
-		Tail:       "all",
-	})
+	}
+	if tail {
+		opts.Tail = "all"
+	}
+	return cli.ContainerLogs(context.Background(), server, opts)
 }
 
 func statusHandler(cli *client.Client) http.Handler {
