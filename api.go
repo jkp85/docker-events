@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/docker/docker/api/types/events"
 )
 
 var APIClient = NewClient()
@@ -29,7 +31,6 @@ func createAPIURL() *url.URL {
 		proto = "https"
 	}
 	return &url.URL{Scheme: proto, Host: fmt.Sprintf("%s:%s", os.Getenv("TBS_HOST"), os.Getenv("TBS_PORT"))}
-
 }
 
 type Client struct {
@@ -78,4 +79,26 @@ func (c *Client) Post(urlStr, token string, body interface{}) (*http.Response, e
 	}
 	log.Println("POST")
 	return c.client.Do(req)
+}
+
+func (c *Client) HandlePostEvent(e events.Message, uri string, target interface{}) {
+	name := e.Actor.Attributes["name"]
+	args, err := getContainerArgs(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	token := args.Key
+	resp, err := APIClient.Post(uri, token, target)
+	if err != nil {
+		log.Printf("Create error: %s", err)
+	}
+	if resp == nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		log.Printf("Error during create")
+		io.Copy(os.Stdout, resp.Body)
+	}
 }

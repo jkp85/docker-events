@@ -2,30 +2,36 @@ package main
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"flag"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	uuid "github.com/satori/go.uuid"
 )
 
-func idFromServerName(name string) (uuid.UUID, error) {
-	serverID := strings.Split(name, "_")[1]
-	return uuid.FromString(serverID)
+type ContainerArgs struct {
+	Key, Namespace, Version, ProjectID, ServerID, Root, Secret, Script, Function, Type string
 }
 
-func getUserToken(service string) (string, error) {
+func getContainerArgs(container string) (*ContainerArgs, error) {
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	serviceJSON, _, err := cli.ServiceInspectWithRaw(context.Background(), service, types.ServiceInspectOptions{})
-	args := serviceJSON.Spec.TaskTemplate.ContainerSpec.Args
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-key") {
-			return strings.Split(arg, "=")[1], nil
-		}
+	contJSON, _, err := cli.ContainerInspectWithRaw(context.Background(), container, false)
+	if err != nil {
+		return nil, err
 	}
-	return "", errors.New("No user token.")
+	flagSet := flag.NewFlagSet("server", flag.ContinueOnError)
+	args := new(ContainerArgs)
+	flagSet.StringVar(&args.Key, "key", "", "")
+	flagSet.StringVar(&args.Namespace, "ns", "", "")
+	flagSet.StringVar(&args.Version, "version", "", "")
+	flagSet.StringVar(&args.ProjectID, "projectID", "", "")
+	flagSet.StringVar(&args.ServerID, "serverID", "", "")
+	flagSet.StringVar(&args.Root, "root", "", "")
+	flagSet.StringVar(&args.Secret, "secret", "", "")
+	flagSet.StringVar(&args.Script, "script", "", "")
+	flagSet.StringVar(&args.Function, "function", "", "")
+	flagSet.StringVar(&args.Type, "type", "", "")
+	flagSet.Parse(contJSON.Args)
+	return args, nil
 }
