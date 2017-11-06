@@ -32,6 +32,6 @@ func getContainerArgs(container string) (*ContainerArgs, error) {
 	flagSet.StringVar(&args.Script, "script", "", "")
 	flagSet.StringVar(&args.Function, "function", "", "")
 	flagSet.StringVar(&args.Type, "type", "", "")
-	flagSet.Parse(contJSON.Args)
+	flagSet.Parse(contJSON.Args[2:])
 	return args, nil
 }

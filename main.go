@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/docker/docker/api/types/events"
 	uuid "github.com/satori/go.uuid"
@@ -14,6 +15,7 @@ func main() {
 	d := NewDispatcher()
 	d.HandleFunc("container", "die", CreateContainerDeleteAction)
 	d.HandleFunc("container", "start", AddStats)
+	d.HandleFunc("container", "die", EndStats)
 	log.Fatal(d.Run())
 }
 
@@ -51,5 +53,33 @@ func AddStats(e events.Message) {
 		serverID,
 	)
 	stats := NewStats()
+	APIClient.HandlePostEvent(e, uri, stats)
+}
+
+func EndStats(e events.Message) {
+	name := e.Actor.Attributes["name"]
+	serverID, err := uuid.FromString(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Printf("Creates server stats: %s\n", name)
+	args, err := getContainerArgs(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	uri := fmt.Sprintf(
+		"/%s/%s/projects/%s/servers/%s/run-stats/update_latest/",
+		args.Version,
+		args.Namespace,
+		args.ProjectID,
+		serverID,
+	)
+	stats := &struct {
+		Stop time.Time `json:"stop"`
+	}{
+		time.Now().UTC(),
+	}
 	APIClient.HandlePostEvent(e, uri, stats)
 }
