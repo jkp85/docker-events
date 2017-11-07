@@ -10,37 +10,39 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// Event handler interface for handling received events
+// EventHandler interface for handling received events
 type EventHandler interface {
 	Handle(events.Message)
 }
 
-// Event handler function for convenience
+// EventHandlerFunc is a  function for convenience
 type EventHandlerFunc func(events.Message)
 
+// Handle implements EventHandler interface
 func (f EventHandlerFunc) Handle(e events.Message) {
 	f(e)
 }
 
+// Dispatcher is an interface for dispatching actions
 type Dispatcher interface {
 	Run() error
 	Handle(eventType, name string, eh EventHandler)
 	HandleFunc(eventType, name string, eh func(events.Message))
 }
 
-// Dispatches events to proper handlers
+// Dispatch fire events to proper handlers
 type Dispatch struct {
-	handlers map[string]EventHandler
+	handlers map[string][]EventHandler
 }
 
-// Creates new dispatcher
+// NewDispatcher creates new dispatcher
 func NewDispatcher() Dispatcher {
 	return &Dispatch{
-		handlers: make(map[string]EventHandler),
+		handlers: make(map[string][]EventHandler),
 	}
 }
 
-// Runs dispatcher
+// Run is starting a dispatcher
 func (d *Dispatch) Run() error {
 	log.Println("Starting dispatcher...")
 	cli, err := client.NewEnvClient()
@@ -53,9 +55,11 @@ func (d *Dispatch) Run() error {
 		select {
 		case msg := <-eventsCh:
 			eventName := fmt.Sprintf("%s.%s", msg.Type, msg.Action)
-			handler, ok := d.handlers[eventName]
+			handlers, ok := d.handlers[eventName]
 			if ok {
-				go handler.Handle(msg)
+				for _, handler := range handlers {
+					go handler.Handle(msg)
+				}
 			}
 		case err = <-errCh:
 			if err != nil {
@@ -63,22 +67,27 @@ func (d *Dispatch) Run() error {
 			}
 		}
 	}
-	return nil
 }
 
-// Registers event with proper handler
+// Handle registers event with proper handler
 // eventType should be either container or image or volume or network or daemon
 func (d *Dispatch) Handle(eventType, name string, handler EventHandler) {
 	if validateEvent(eventType, name) {
-		eventName := fmt.Sprintf("%s.%s", eventType, name)
-		d.handlers[eventName] = handler
+		d.appendHandler(eventType, name, handler)
 	}
 }
 
-// Registers event with proper handle function
+// HandleFunc registers event with proper handle function
 func (d *Dispatch) HandleFunc(eventType, name string, handler func(events.Message)) {
 	if validateEvent(eventType, name) {
-		eventName := fmt.Sprintf("%s.%s", eventType, name)
-		d.handlers[eventName] = EventHandlerFunc(handler)
+		d.appendHandler(eventType, name, EventHandlerFunc(handler))
 	}
+}
+
+func (d *Dispatch) appendHandler(eventType, name string, handler EventHandler) {
+	eventName := fmt.Sprintf("%s.%s", eventType, name)
+	if _, ok := d.handlers[eventName]; !ok {
+		d.handlers[eventName] = []EventHandler{}
+	}
+	d.handlers[eventName] = append(d.handlers[eventName], handler)
 }

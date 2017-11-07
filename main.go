@@ -2,49 +2,84 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types/events"
+	uuid "github.com/satori/go.uuid"
 )
 
 func main() {
 	go websockets()
 	d := NewDispatcher()
-	d.HandleFunc("service", "remove", Die)
+	d.HandleFunc("container", "die", CreateContainerDeleteAction)
+	d.HandleFunc("container", "start", AddStats)
+	d.HandleFunc("container", "die", EndStats)
 	log.Fatal(d.Run())
 }
 
-func Die(e events.Message) {
+func CreateContainerDeleteAction(e events.Message) {
 	name := e.Actor.Attributes["name"]
-	if !strings.HasPrefix(name, "server") {
-		return
-	}
-	log.Printf("Handling remove event for service: %s\n", name)
-	serverID, err := idFromServerName(name)
-	if err != nil {
-		log.Println("Error parsing server id: %s", err)
-		return
-	}
-	token, err := getUserToken(name)
+	serverID, err := uuid.FromString(name)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	log.Printf("Handle server remove action for server: %s\n", serverID)
 	action := NewAction("POST", serverID.String())
-	resp, err := APIClient.Post(
-		fmt.Sprintf("/%s/actions/create/", os.Getenv("TBS_DEFAULT_VERSION")), token, action)
+	uri := fmt.Sprintf("/%s/actions/create/", os.Getenv("TBS_DEFAULT_VERSION"))
+	APIClient.HandlePostEvent(e, uri, action)
+}
+
+func AddStats(e events.Message) {
+	name := e.Actor.Attributes["name"]
+	serverID, err := uuid.FromString(name)
 	if err != nil {
-		log.Printf("Action create error: %s", err)
-	}
-	if resp == nil {
+		log.Println(err)
 		return
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		log.Printf("Error during action create")
-		io.Copy(os.Stdout, resp.Body)
+	log.Printf("Creates server stats: %s\n", name)
+	args, err := getContainerArgs(name)
+	if err != nil {
+		log.Println(err)
+		return
 	}
+	uri := fmt.Sprintf(
+		"/%s/%s/projects/%s/servers/%s/run-stats/",
+		args.Version,
+		args.Namespace,
+		args.ProjectID,
+		serverID,
+	)
+	stats := NewStats()
+	APIClient.HandlePostEvent(e, uri, stats)
+}
+
+func EndStats(e events.Message) {
+	name := e.Actor.Attributes["name"]
+	serverID, err := uuid.FromString(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Printf("Creates server stats: %s\n", name)
+	args, err := getContainerArgs(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	uri := fmt.Sprintf(
+		"/%s/%s/projects/%s/servers/%s/run-stats/update_latest/",
+		args.Version,
+		args.Namespace,
+		args.ProjectID,
+		serverID,
+	)
+	stats := &struct {
+		Stop time.Time `json:"stop"`
+	}{
+		time.Now().UTC(),
+	}
+	APIClient.HandlePostEvent(e, uri, stats)
 }
