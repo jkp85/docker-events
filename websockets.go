@@ -55,21 +55,37 @@ func logsHandler(cli *client.Client) http.Handler {
 			return
 		}
 		defer conn.Close()
-		var logs io.ReadCloser
-		var scanner *bufio.Scanner
-		logs, err = getLogs(cli, server, true)
-		scanner = bufio.NewScanner(logs)
-		for {
-			for scanner.Scan() {
-				conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
-			}
-			if scanner.Err() != nil {
-				log.Printf("Scanner err: %s\n", scanner.Err())
-			}
-			logs.Close()
-			waitForServer(cli, server)
-			logs, err = getLogs(cli, server, false)
+		go func(conn *websocket.Conn) {
+			var logs io.ReadCloser
+			var scanner *bufio.Scanner
+			logs, err = getLogs(cli, server, true)
 			scanner = bufio.NewScanner(logs)
+			for {
+				log.Print("Scanning")
+				for scanner.Scan() {
+					conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes()[8:])
+				}
+				if scanner.Err() != nil {
+					log.Printf("Scanner err: %s\n", scanner.Err())
+				}
+				logs.Close()
+				waitForServer(cli, server)
+				logs, err = getLogs(cli, server, false)
+				scanner = bufio.NewScanner(logs)
+			}
+		}(conn)
+		for {
+			msgType, _, err := conn.NextReader()
+			if err != nil {
+				conn.Close()
+				log.Print(err)
+				return
+			}
+			if msgType == websocket.CloseMessage {
+				log.Print("close")
+				conn.Close()
+				return
+			}
 		}
 	})
 }
