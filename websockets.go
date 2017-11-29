@@ -63,7 +63,7 @@ func logsHandler(cli *client.Client) http.Handler {
 			for {
 				log.Print("Scanning")
 				for scanner.Scan() {
-					conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes()[8:])
+					conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
 				}
 				if scanner.Err() != nil {
 					log.Printf("Scanner err: %s\n", scanner.Err())
