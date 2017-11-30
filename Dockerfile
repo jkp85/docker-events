@@ -1,8 +1,5 @@
-FROM alpine AS base
-RUN apk update && apk add ca-certificates
-FROM scratch
-
-COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+FROM alpine
+RUN apk update && apk upgrade && apk add ca-certificates && rm -rf /var/cache/apk/*
 
 EXPOSE 8000
 CMD ["/events"]
