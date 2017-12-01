@@ -26,7 +26,7 @@ func websockets() {
 	}
 	r := mux.NewRouter()
 	r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/status/", statusHandler(cli))
-	r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/logs/", logsHandler(cli))
+	//r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/logs/", logsHandler(cli))
 	server := &http.Server{
 		Addr:           ":8000",
 		Handler:        r,
