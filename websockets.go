@@ -61,17 +61,18 @@ func logsHandler(cli *client.Client) http.Handler {
 			logs, err = getLogs(cli, server, true)
 			scanner = bufio.NewScanner(logs)
 			for {
-				log.Print("Scanning")
-				for scanner.Scan() {
-					conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
+				if scanner != nil {
+					for scanner.Scan() {
+						conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
+					}
+					if scanner.Err() != nil {
+						log.Printf("Scanner err: %s\n", scanner.Err())
+					}
+					logs.Close()
+					waitForServer(cli, server)
+					logs, err = getLogs(cli, server, false)
+					scanner = bufio.NewScanner(logs)
 				}
-				if scanner.Err() != nil {
-					log.Printf("Scanner err: %s\n", scanner.Err())
-				}
-				logs.Close()
-				waitForServer(cli, server)
-				logs, err = getLogs(cli, server, false)
-				scanner = bufio.NewScanner(logs)
 			}
 		}(conn)
 		for {
