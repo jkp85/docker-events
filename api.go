@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/docker/docker/api/types/events"
 )
 
 var APIClient = NewClient()
@@ -45,6 +43,7 @@ func (c *Client) NewRequest(method, urlStr, token string, body interface{}) (*ht
 	}
 
 	u := c.BaseURL.ResolveReference(rel)
+	log.Println(u, rel)
 
 	var buf io.ReadWriter
 	if body != nil {
@@ -81,14 +80,7 @@ func (c *Client) Post(urlStr, token string, body interface{}) (*http.Response, e
 	return c.client.Do(req)
 }
 
-func (c *Client) HandlePostEvent(e events.Message, uri string, target interface{}) {
-	name := e.Actor.Attributes["name"]
-	args, err := getContainerArgs(name)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	token := args.Key
+func (c *Client) HandlePostEvent(token string, uri string, target interface{}) {
 	resp, err := APIClient.Post(uri, token, target)
 	if err != nil {
 		log.Printf("Create error: %s", err)

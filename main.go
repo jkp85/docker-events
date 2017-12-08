@@ -5,81 +5,68 @@ import (
 	"log"
 	"os"
 	"time"
-
-	"github.com/docker/docker/api/types/events"
-	uuid "github.com/satori/go.uuid"
 )
 
 func main() {
-	go websockets()
-	d := NewDispatcher()
-	d.HandleFunc("container", "die", CreateContainerDeleteAction)
-	d.HandleFunc("container", "start", AddStats)
-	d.HandleFunc("container", "die", EndStats)
-	log.Fatal(d.Run())
+	for e := range ECSEvents() {
+		switch e.Status {
+		case STOPPED:
+			go CreateContainerDeleteAction(e)
+			go EndStats(e)
+		case RUNNING:
+			go AddStats(e)
+		}
+	}
 }
 
-func CreateContainerDeleteAction(e events.Message) {
-	name := e.Actor.Attributes["name"]
-	serverID, err := uuid.FromString(name)
+func CreateContainerDeleteAction(e *ECSEvent) {
+	args, err := getContainerArgs(e.Command)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	log.Printf("Handle server remove action for server: %s\n", serverID)
-	action := NewAction("POST", serverID.String())
+	log.Printf("Handle server remove action for server: %s\n", args.ServerID)
+	action := NewAction("POST", args.ServerID, e.Time)
 	uri := fmt.Sprintf("/%s/actions/create/", os.Getenv("TBS_DEFAULT_VERSION"))
-	APIClient.HandlePostEvent(e, uri, action)
+	APIClient.HandlePostEvent(args.Key, uri, action)
 }
 
-func AddStats(e events.Message) {
-	name := e.Actor.Attributes["name"]
-	serverID, err := uuid.FromString(name)
+func AddStats(e *ECSEvent) {
+	args, err := getContainerArgs(e.Command)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	log.Printf("Creates server stats: %s\n", name)
-	args, err := getContainerArgs(name)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	log.Printf("Creates server stats: %s\n", args.ServerID)
 	uri := fmt.Sprintf(
 		"/%s/%s/projects/%s/servers/%s/run-stats/",
-		args.Version,
+		os.Getenv("TBS_DEFAULT_VERSION"),
 		args.Namespace,
 		args.ProjectID,
-		serverID,
+		args.ServerID,
 	)
 	stats := NewStats()
-	APIClient.HandlePostEvent(e, uri, stats)
+	APIClient.HandlePostEvent(args.Key, uri, stats)
 }
 
-func EndStats(e events.Message) {
-	name := e.Actor.Attributes["name"]
-	serverID, err := uuid.FromString(name)
+func EndStats(e *ECSEvent) {
+	args, err := getContainerArgs(e.Command)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	log.Printf("Creates server stats: %s\n", name)
-	args, err := getContainerArgs(name)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	log.Printf("Creates server stats: %s\n", args.ServerID)
 	uri := fmt.Sprintf(
 		"/%s/%s/projects/%s/servers/%s/run-stats/update_latest/",
-		args.Version,
+		os.Getenv("TBS_DEFAULT_VERSION"),
 		args.Namespace,
 		args.ProjectID,
-		serverID,
+		args.ServerID,
 	)
 	stats := &struct {
 		Stop time.Time `json:"stop"`
 	}{
 		time.Now().UTC(),
 	}
-	APIClient.HandlePostEvent(e, uri, stats)
+	APIClient.HandlePostEvent(args.Key, uri, stats)
 }
