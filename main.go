@@ -69,7 +69,6 @@ func EndStats(e *ECSEvent, args *ContainerArgs) {
 }
 
 func filterRoot(e *ECSEvent, args *ContainerArgs) bool {
-	log.Println(args.Root, os.Getenv("TBS_HOST"))
 	serverRoot, _ := url.Parse(args.Root)
 	apiRoot, _ := url.Parse(os.Getenv("TBS_HOST"))
 	if serverRoot != nil && apiRoot != nil {

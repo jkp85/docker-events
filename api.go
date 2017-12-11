@@ -43,7 +43,6 @@ func (c *Client) NewRequest(method, urlStr, token string, body interface{}) (*ht
 	}
 
 	u := c.BaseURL.ResolveReference(rel)
-	log.Println(u, rel)
 
 	var buf io.ReadWriter
 	if body != nil {
