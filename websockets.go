@@ -1,16 +1,10 @@
 package main
 
 import (
-	"bufio"
-	"context"
-	"io"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -19,14 +13,35 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func websockets() {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		log.Fatal(err)
+type StatusDispatcher struct {
+	Consumers map[string]chan *Message
+	Messages  <-chan *Message
+}
+
+func (sd *StatusDispatcher) Dispatch() {
+	for msg := range sd.Messages {
+		if con, ok := sd.Consumers[msg.ServerID]; ok {
+			con <- msg
+		}
 	}
+}
+
+func (sd *StatusDispatcher) AddConsumer(serverID string) chan *Message {
+	out := make(chan *Message)
+	sd.Consumers[serverID] = out
+	return out
+}
+
+func (sd *StatusDispatcher) RemoveConsumer(serverID string) {
+	close(sd.Consumers[serverID])
+	delete(sd.Consumers, serverID)
+}
+
+func websockets(statuses <-chan *Message) {
+	sd := &StatusDispatcher{Messages: statuses, Consumers: make(map[string]chan *Message)}
+	go sd.Dispatch()
 	r := mux.NewRouter()
-	r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/status/", statusHandler(cli))
-	//r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/logs/", logsHandler(cli))
+	r.Handle("/{version}/{namespace}/projects/{projectID}/servers/{serverID}/status/", statusHandler(sd))
 	server := &http.Server{
 		Addr:           ":8000",
 		Handler:        r,
@@ -38,10 +53,11 @@ func websockets() {
 }
 
 type Message struct {
-	Status string `json:"status"`
+	ServerID string `json:"-"`
+	Status   string `json:"status"`
 }
 
-func logsHandler(cli *client.Client) http.Handler {
+func statusHandler(sd *StatusDispatcher) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		server := vars["serverID"]
@@ -49,116 +65,28 @@ func logsHandler(cli *client.Client) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		log.Printf("Handling server: %s\n", server)
+		statuses := sd.AddConsumer(server)
+		defer sd.RemoveConsumer(server)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 		defer conn.Close()
-		go func(conn *websocket.Conn) {
-			var logs io.ReadCloser
-			var scanner *bufio.Scanner
-			logs, err = getLogs(cli, server, true)
-			scanner = bufio.NewScanner(logs)
-			for {
-				if scanner != nil {
-					for scanner.Scan() {
-						conn.WriteMessage(websocket.BinaryMessage, scanner.Bytes())
-					}
-					if scanner.Err() != nil {
-						log.Printf("Scanner err: %s\n", scanner.Err())
-					}
-					logs.Close()
-					waitForServer(cli, server)
-					logs, err = getLogs(cli, server, false)
-					scanner = bufio.NewScanner(logs)
-				}
-			}
-		}(conn)
-		for {
-			msgType, _, err := conn.NextReader()
-			if err != nil {
-				conn.Close()
-				log.Print(err)
-				return
-			}
-			if msgType == websocket.CloseMessage {
-				log.Print("close")
-				conn.Close()
-				return
-			}
-		}
-	})
-}
-
-func waitForServer(cli *client.Client, server string) {
-	filter := filters.NewArgs()
-	filter.Add("container", server)
-	filter.Add("event", "start")
-	eventsCh, _ := cli.Events(context.Background(), types.EventsOptions{
-		Filters: filter,
-	})
-	log.Printf("Waiting for server: %s\n", server)
-	<-eventsCh
-}
-
-func getLogs(cli *client.Client, server string, tail bool) (io.ReadCloser, error) {
-	log.Printf("Getting logs for server: %s\n", server)
-	opts := types.ContainerLogsOptions{
-		Follow:     true,
-		ShowStderr: true,
-		ShowStdout: true,
-	}
-	if tail {
-		opts.Tail = "all"
-	}
-	return cli.ContainerLogs(context.Background(), server, opts)
-}
-
-func statusHandler(cli *client.Client) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		server := vars["serverID"]
-		if server == "" {
-			http.NotFound(w, r)
-			return
-		}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		defer conn.Close()
-		filter := filters.NewArgs()
-		filter.Add("container", server)
-		filter.Add("event", "start")
-		filter.Add("event", "die")
-		eventsCh, errCh := cli.Events(context.Background(), types.EventsOptions{
-			Filters: filter,
-		})
 		for {
 			select {
-			case msg := <-eventsCh:
-				eventName := msg.Status
-				exitCode := msg.Actor.Attributes["exitCode"]
-				apiMsg := new(Message)
-				if eventName == "start" {
-					apiMsg.Status = "Running"
-				} else {
-					switch exitCode {
-					case "0", "143":
-						apiMsg.Status = "Stopped"
-					default:
-						apiMsg.Status = "Error"
-					}
-				}
-				err = conn.WriteJSON(apiMsg)
+			case msg := <-statuses:
+				log.Printf("Status update: %+v\n", msg)
+				err = conn.WriteJSON(msg)
 				if err != nil {
 					log.Println(err)
 				}
-			case err = <-errCh:
-				log.Println(err)
 			}
 		}
 	})
+}
+
+func msgFromEvent(e *ECSEvent, args *ContainerArgs) *Message {
+	return &Message{Status: e.Status, ServerID: args.ServerID}
 }

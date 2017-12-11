@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -45,13 +47,16 @@ type ECSEvent struct {
 
 func ECSEvents() <-chan *ECSEvent {
 	out := make(chan *ECSEvent)
-	svc := sqs.New(session.Must(session.NewSession()))
+	config := &aws.Config{
+		Region: aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+	}
+	svc := sqs.New(session.Must(session.NewSession(config)))
 	queueName := os.Getenv("SQS_QUEUE")
 	url, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: &queueName})
 	if err != nil {
 		log.Fatal(err)
 	}
-	ecsCli := ecs.New(session.Must(session.NewSession()))
+	ecsCli := ecs.New(session.Must(session.NewSession(config)))
 	ticker := time.NewTicker(time.Second)
 	go func(out chan<- *ECSEvent) {
 		for range ticker.C {
@@ -66,7 +71,7 @@ func ECSEvents() <-chan *ECSEvent {
 					log.Println(err)
 					continue
 				}
-				e.Status = status(e)
+				e.Status = strings.Title(strings.ToLower(status(e)))
 				cont, err := getTaskDetails(ecsCli, e.Detail.TaskDefinitionArn)
 				if err != nil {
 					log.Println(err)
@@ -76,6 +81,10 @@ func ECSEvents() <-chan *ECSEvent {
 					e.Command = sliceConv(cont.ContainerDefinitions[0].Command)
 					out <- e
 				}
+				svc.DeleteMessage(&sqs.DeleteMessageInput{
+					QueueUrl:      url.QueueUrl,
+					ReceiptHandle: msg.ReceiptHandle,
+				})
 			}
 		}
 	}(out)
