@@ -13,6 +13,7 @@ func main() {
 	defer close(ws)
 	go websockets(ws)
 	for e := range ECSEvents() {
+		log.Printf("Event data: %+v\n", e)
 		args, err := getContainerArgs(e.Command)
 		if err != nil {
 			log.Println(err)
