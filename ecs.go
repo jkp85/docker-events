@@ -20,7 +20,6 @@ const (
 
 	RUNNING = "RUNNING"
 	STOPPED = "STOPPED"
-	ERROR   = "ERROR"
 )
 
 type ECSContainerOverride struct {
@@ -103,8 +102,8 @@ func getTaskDetails(cli *ecs.ECS, arn string) (*ecs.TaskDefinition, error) {
 }
 
 func status(e *ECSEvent) string {
-	status := ERROR
-	if e.Detail.LastStatus == RUNNING && e.Detail.DesiredStatus == STOPPED {
+	status := STOPPED
+	if e.Detail.DesiredStatus == STOPPED {
 		status = STOPPED
 	}
 	if e.Detail.DesiredStatus == RUNNING {
